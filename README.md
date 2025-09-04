@@ -1,25 +1,24 @@
-Mivok es una aplicación que conecta DJs con personas que buscan música para sus eventos, facilitando la comunicación y gestión de servicios musicales de manera rápida y sencilla.
+🎧 Mivok conecta DJs 🎵 con personas que buscan música para sus eventos 🎉, haciendo todo más fácil y rápido 🚀.
 
-Funcionalidades principales
+Funcionalidades
 
-Buscar DJs disponibles para tu evento.
+🔍 Buscar DJs disponibles
 
-Contactar directamente con DJs y coordinar detalles.
+💬 Contactar y coordinar tu evento
 
-Gestión de eventos y reservas desde la app.
+📅 Gestionar reservas y detalles
 
-Perfiles de DJs con información de estilo, experiencia y valoraciones.
+⭐ Ver perfiles y valoraciones de DJs
 
 Tecnologías
 
-Frontend: React Native
+📱 Frontend: React Native/Expo
 
-Backend: [aquí puedes poner tu tecnología, ej. Node.js / Firebase / Supabase]
+⚙️ Backend: [Node.js / Firebase / Supabase]
 
 Cómo usar
+📝 Regístrate como DJ o cliente
 
-Regístrate como DJ o cliente.
+🎯 Explora DJs o publica tu evento
 
-Explora DJs disponibles o publica tu evento.
-
-Contacta y gestiona tu reserva directamente desde la app.
+📩 Contacta y confirma tu reserva
