@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "MivokAppProject",
+    "name": "Mivok",
     "slug": "MivokAppProject",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.zorok21.MivokAppProject"
     },
     "web": {
       "bundler": "metro",
@@ -37,6 +38,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4991fd2d-81cb-4e66-8ab6-533d3c40d957"
+      }
     }
   }
 }
