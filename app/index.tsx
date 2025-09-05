@@ -259,6 +259,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: wp(8),
     zIndex: 10, // Asegurar que el contenido esté sobre los backgrounds
+    paddingTop: hp(8), // <-- Agregado para bajar todo el contenido
   },
 
   // HEADER SECTION
