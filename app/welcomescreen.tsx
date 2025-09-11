@@ -1,17 +1,22 @@
-import * as React from 'react';
-import { useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
-  Dimensions,
-  Animated,
-  Alert,
-} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { signOut } from '../lib/supabase';
+import * as React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { getUserProfile, signOut, updateUserNames, UserProfile } from '../lib/supabase';
 
 const { width, height } = Dimensions.get('window');
 
@@ -37,6 +42,8 @@ const gradients: [string, string][] = [
 // 🌈 Degradados para botones
 const buttonGradients = {
   logout: ['#ef4444', '#dc2626'] as [string, string],
+  save: ['#10b981', '#059669'] as [string, string],
+  edit: ['#3b82f6', '#2563eb'] as [string, string],
   skip: [
     'rgba(255, 255, 255, 0.15)',
     'rgba(255, 255, 255, 0.05)',
@@ -189,6 +196,14 @@ export default function WelcomeScreen({ user, onSignOut }: WelcomeScreenProps) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [isAnimating, setIsAnimating] = React.useState(false);
+  
+  // Estados para el perfil del usuario
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   useEffect(() => {
     let animationTimeout: ReturnType<typeof setTimeout>;
@@ -231,6 +246,38 @@ export default function WelcomeScreen({ user, onSignOut }: WelcomeScreenProps) {
     };
   }, [fadeAnim, isAnimating]);
 
+  // Cargar perfil del usuario
+  const loadUserProfile = useCallback(async () => {
+    if (!user?.id) return;
+    
+    setProfileLoading(true);
+    try {
+      const profile = await getUserProfile(user.id);
+      setUserProfile(profile);
+      
+      if (profile) {
+        setFirstName(profile.first_name || '');
+        setLastName(profile.last_name || '');
+        
+        // Si no tiene nombres, activar modo edición automáticamente
+        if (!profile.first_name || !profile.last_name) {
+          setIsEditing(true);
+        }
+      } else {
+        // Si no existe perfil, activar modo edición
+        setIsEditing(true);
+      }
+    } catch (error) {
+      console.error('Error cargando perfil:', error);
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadUserProfile();
+  }, [loadUserProfile]);
+
   // 🔥 FUNCIÓN PARA CERRAR SESIÓN
   const handleSignOut = async () => {
     try {
@@ -246,6 +293,52 @@ export default function WelcomeScreen({ user, onSignOut }: WelcomeScreenProps) {
     }
   };
 
+  // Función para guardar nombres
+  const handleSaveNames = async () => {
+    if (!firstName.trim() || !lastName.trim()) {
+      Alert.alert('Campos requeridos', 'Por favor ingresa tu nombre y apellido');
+      return;
+    }
+
+    if (!user?.id) {
+      Alert.alert('Error', 'No se pudo identificar al usuario');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await updateUserNames(user.id, firstName.trim(), lastName.trim());
+      
+      if (result.success) {
+        Alert.alert('¡Éxito!', 'Tu información ha sido guardada correctamente');
+        setIsEditing(false);
+        // Recargar perfil para obtener datos actualizados
+        await loadUserProfile();
+      } else {
+        Alert.alert('Error', result.error || 'No se pudo guardar la información');
+      }
+    } catch (error) {
+      console.error('Error guardando nombres:', error);
+      Alert.alert('Error', 'Ocurrió un error inesperado');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Función para activar modo edición
+  const handleEditNames = () => {
+    setIsEditing(true);
+    setFirstName(userProfile?.first_name || '');
+    setLastName(userProfile?.last_name || '');
+  };
+
+  // Función para cancelar edición
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setFirstName(userProfile?.first_name || '');
+    setLastName(userProfile?.last_name || '');
+  };
+
   const nextIndex = (currentIndex + 1) % gradients.length;
 
   // Generar partículas con keys estables
@@ -255,8 +348,19 @@ export default function WelcomeScreen({ user, onSignOut }: WelcomeScreenProps) {
     )), []
   );
 
+  // Obtener nombre completo para mostrar
+  const getDisplayName = () => {
+    if (userProfile?.first_name && userProfile?.last_name) {
+      return `${userProfile.first_name} ${userProfile.last_name}`;
+    }
+    return user?.email || 'Usuario';
+  };
+
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       {/* Background base */}
@@ -291,7 +395,7 @@ export default function WelcomeScreen({ user, onSignOut }: WelcomeScreenProps) {
 
       {/* Información del usuario logueado */}
       <View style={styles.userInfo}>
-        <Text style={styles.userText}>👋 {user?.email}</Text>
+        <Text style={styles.userText}>{user?.email}</Text>
         <TouchableOpacity onPress={handleSignOut} style={styles.logoutButton}>
           <LinearGradient
             colors={buttonGradients.logout}
@@ -304,31 +408,146 @@ export default function WelcomeScreen({ user, onSignOut }: WelcomeScreenProps) {
         </TouchableOpacity>
       </View>
 
-      {/* Contenido principal - Pantalla de bienvenida */}
-      <View style={styles.loggedInContent}>
-        <Text style={styles.welcomeText}>¡Bienvenido a Mivok!</Text>
-        <Text style={styles.userEmailText}>{user?.email}</Text>
-        <Text style={styles.successText}>Has iniciado sesión correctamente 🎉</Text>
-        
-        {/* Botón adicional para explorar la app */}
-        <TouchableOpacity style={styles.exploreButtonContainer}>
-          <LinearGradient
-            colors={buttonGradients.skip}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.exploreButton}
-          >
-            <Text style={styles.exploreButtonText}>Explorar la App</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-    </View>
+      <ScrollView 
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Contenido principal - Pantalla de bienvenida */}
+        <View style={styles.loggedInContent}>
+          <Text style={styles.welcomeText}>¡Bienvenido a Mivok!</Text>
+          
+          {profileLoading ? (
+            <Text style={styles.loadingText}>Cargando perfil...</Text>
+          ) : (
+            <>
+              {/* Sección del perfil */}
+              <View style={styles.profileSection}>
+                <Text style={styles.profileTitle}>Tu Perfil</Text>
+                
+                {!isEditing ? (
+                  // Vista de solo lectura
+                  <View style={styles.profileDisplay}>
+                    <Text style={styles.displayName}>{getDisplayName()}</Text>
+                    <Text style={styles.userEmailText}>{user?.email}</Text>
+                    <Text style={styles.providerText}>
+                      Conectado con {userProfile?.provider || 'OAuth'}
+                    </Text>
+                    
+                    <TouchableOpacity 
+                      style={styles.editButtonContainer} 
+                      onPress={handleEditNames}
+                    >
+                      <LinearGradient
+                        colors={buttonGradients.edit}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.editButton}
+                      >
+                        <Ionicons name="pencil" size={fp(16)} color="#fff" />
+                        <Text style={styles.editButtonText}>Editar Perfil</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  // Vista de edición
+                  <View style={styles.profileForm}>
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.inputLabel}>Nombre</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={firstName}
+                        onChangeText={setFirstName}
+                        placeholder="Ingresa tu nombre"
+                        placeholderTextColor="rgba(255,255,255,0.5)"
+                        maxLength={50}
+                      />
+                    </View>
+                    
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.inputLabel}>Apellido</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={lastName}
+                        onChangeText={setLastName}
+                        placeholder="Ingresa tu apellido"
+                        placeholderTextColor="rgba(255,255,255,0.5)"
+                        maxLength={50}
+                      />
+                    </View>
+                    
+                    <View style={styles.formButtons}>
+                      <TouchableOpacity 
+                        style={styles.formButtonContainer} 
+                        onPress={handleSaveNames}
+                        disabled={loading}
+                      >
+                        <LinearGradient
+                          colors={buttonGradients.save}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={[styles.formButton, loading && { opacity: 0.7 }]}
+                        >
+                          <Ionicons name="checkmark" size={fp(16)} color="#fff" />
+                          <Text style={styles.formButtonText}>
+                            {loading ? 'Guardando...' : 'Guardar'}
+                          </Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                      
+                      {userProfile?.first_name && (
+                        <TouchableOpacity 
+                          style={styles.formButtonContainer} 
+                          onPress={handleCancelEdit}
+                        >
+                          <LinearGradient
+                            colors={buttonGradients.skip}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.formButton}
+                          >
+                            <Ionicons name="close" size={fp(16)} color="#fff" />
+                            <Text style={styles.formButtonText}>Cancelar</Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                )}
+              </View>
+              
+              <Text style={styles.successText}>Has iniciado sesión correctamente 🎉</Text>
+            </>
+          )}
+          
+          {/* Botón adicional para explorar la app */}
+          <TouchableOpacity style={styles.exploreButtonContainer}>
+            <LinearGradient
+              colors={buttonGradients.skip}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.exploreButton}
+            >
+              <Text style={styles.exploreButtonText}>Explorar la App</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   background: { flex: 1 },
+  
+  scrollContainer: {
+    flex: 1,
+    zIndex: 10,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
 
   // PARTÍCULAS
   particlesContainer: {
@@ -354,10 +573,11 @@ const styles = StyleSheet.create({
     padding: wp(3),
     borderRadius: wp(2),
     zIndex: 20,
+    maxWidth: wp(60),
   },
   userText: {
     color: '#fff',
-    fontSize: fp(12),
+    fontSize: fp(11),
     fontWeight: '600',
   },
 
@@ -393,32 +613,174 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: wp(8),
-    zIndex: 10,
+    paddingTop: hp(10),
+    paddingBottom: hp(5),
   },
   welcomeText: {
     fontSize: fp(32),
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
-    marginBottom: hp(2),
+    marginBottom: hp(3),
     textShadowColor: 'rgba(0, 0, 0, 0.6)',
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 8,
     fontFamily: 'Salezar',
   },
-  userEmailText: {
+  
+  // LOADING
+  loadingText: {
+    color: '#fff',
+    fontSize: fp(16),
+    fontWeight: '600',
+    opacity: 0.8,
+  },
+  
+  // PROFILE SECTION
+  profileSection: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: wp(4),
+    padding: wp(5),
+    marginBottom: hp(3),
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  profileTitle: {
     fontSize: fp(20),
+    fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
-    marginBottom: hp(1),
-    opacity: 0.9,
+    marginBottom: hp(2),
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
-    fontWeight: '600',
   },
+  
+  // PROFILE DISPLAY
+  profileDisplay: {
+    alignItems: 'center',
+  },
+  displayName: {
+    fontSize: fp(24),
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: hp(1),
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  userEmailText: {
+    fontSize: fp(16),
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: hp(1),
+    opacity: 0.8,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  providerText: {
+    fontSize: fp(14),
+    color: '#fff',
+    textAlign: 'center',
+    opacity: 0.6,
+    marginBottom: hp(2),
+    fontStyle: 'italic',
+  },
+  
+  // EDIT BUTTON
+  editButtonContainer: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: hp(1.5),
+    paddingHorizontal: wp(6),
+    borderRadius: wp(6),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  editButtonText: {
+    color: '#fff',
+    fontSize: fp(14),
+    fontWeight: '700',
+    marginLeft: wp(2),
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  
+  // PROFILE FORM
+  profileForm: {
+    width: '100%',
+  },
+  inputContainer: {
+    marginBottom: hp(2),
+  },
+  inputLabel: {
+    color: '#fff',
+    fontSize: fp(14),
+    fontWeight: '600',
+    marginBottom: hp(0.5),
+    marginLeft: wp(1),
+  },
+  textInput: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    borderRadius: wp(3),
+    paddingVertical: hp(1.5),
+    paddingHorizontal: wp(4),
+    color: '#fff',
+    fontSize: fp(16),
+    fontWeight: '500',
+  },
+  
+  // FORM BUTTONS
+  formButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: hp(2),
+  },
+  formButtonContainer: {
+    flex: 1,
+    marginHorizontal: wp(1),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  formButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: hp(1.5),
+    paddingHorizontal: wp(4),
+    borderRadius: wp(6),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  formButtonText: {
+    color: '#fff',
+    fontSize: fp(14),
+    fontWeight: '700',
+    marginLeft: wp(1),
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  
   successText: {
-    fontSize: fp(18),
+    fontSize: fp(16),
     color: '#fff',
     textAlign: 'center',
     opacity: 0.8,
@@ -426,12 +788,12 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
-    marginBottom: hp(4),
+    marginBottom: hp(2),
   },
 
   // BOTÓN EXPLORAR
   exploreButtonContainer: {
-    marginTop: hp(3),
+    marginTop: hp(2),
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
