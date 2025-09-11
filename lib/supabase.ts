@@ -1,7 +1,7 @@
 // lib/supabase.ts - VERSIÓN CORREGIDA
 import { createClient } from '@supabase/supabase-js';
-import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import 'react-native-url-polyfill/auto';
 
 const supabaseUrl = 'https://bwaarivuswbaivrrcflv.supabase.co';
