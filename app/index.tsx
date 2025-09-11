@@ -1,19 +1,20 @@
-import * as React from 'react';
-import { useEffect, useRef, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
-  Dimensions,
-  Animated,
-  Alert,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { signInWithGoogle, getCurrentUser, hasActiveSession, supabase } from '../lib/supabase';
+import * as React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { getCurrentUser, hasActiveSession, signInWithGoogle, signInWithMicrosoft, signInWithFacebook, supabase } from '../lib/supabase';
 import WelcomeScreen from './welcomescreen';
 
 const { width, height } = Dimensions.get('window');
@@ -26,7 +27,12 @@ const fp = (percentage: number) => {
   return (width / baseWidth) * percentage;
 };
 
-// 🎨 Gradientes oscuros con transiciones suaves
+// Función para ajustes específicos de iOS
+const iosAdjust = (iosValue: number, androidValue: number = iosValue) => {
+  return Platform.OS === 'ios' ? iosValue : androidValue;
+};
+
+// Gradientes oscuros con transiciones suaves
 const gradients: [string, string][] = [
   ['#1a1a2e', '#16213e'],
   ['#16213e', '#0f3460'],
@@ -37,12 +43,11 @@ const gradients: [string, string][] = [
   ['#374151', '#1a1a2e'],
 ];
 
-// 🌈 Degradados para botones
+// Degradados para botones
 const buttonGradients = {
-  register: ['#DD69B2', '#C037E2'] as [string, string],
-  facebook: ['#4267B2', '#8b5cf6'] as [string, string],
-  google: ['#4267B2', '#8b5cf6'] as [string, string],
-  apple: ['#4267B2', '#8b5cf6'] as [string, string],
+  microsoft: ['#4267B2', '#8b5cf6'] as [string, string],
+  facebook: ['#1877F2', '#4267B2'] as [string, string], // Colores más característicos de Facebook
+  google: ['#4285F4', '#34A853'] as [string, string], // Colores más característicos de Google
   login: ['#667eea', '#764ba2', '#f093fb'] as [string, string, string],
   skip: [
     'rgba(255, 255, 255, 0.15)',
@@ -51,7 +56,7 @@ const buttonGradients = {
   ] as [string, string, string],
 };
 
-// 🌌 Partículas flotantes mejoradas
+// Partículas flotantes mejoradas
 const NUM_PARTICLES = 25;
 
 interface ParticleProps {
@@ -287,10 +292,55 @@ export default function Index() {
 
   const nextIndex = (currentIndex + 1) % gradients.length;
 
-  const handleRegister = () => console.log('Registrarse gratis');
-  const handleFacebookLogin = () => console.log('Continuar con Facebook');
+  // FUNCIÓN MICROSOFT LOGIN
+  const handleMicrosoftLogin = async () => {
+    if (loading) return;
+    
+    setLoading(true);
+    
+    try {
+      console.log('Iniciando login con Microsoft...');
+      const result = await signInWithMicrosoft();
+      
+      if (result.success) {
+        console.log('Login Microsoft exitoso:', result.user?.email);
+        // El estado se actualizará automáticamente por el listener
+      } else {
+        Alert.alert('Error Microsoft', result.error || 'No se pudo iniciar sesión con Microsoft');
+      }
+    } catch (error) {
+      console.error('Error en Microsoft Login:', error);
+      Alert.alert('Error', 'Ocurrió un error inesperado con Microsoft');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // FUNCIÓN FACEBOOK LOGIN - NUEVA IMPLEMENTACIÓN
+  const handleFacebookLogin = async () => {
+    if (loading) return;
+    
+    setLoading(true);
+    
+    try {
+      console.log('Iniciando login con Facebook...');
+      const result = await signInWithFacebook();
+      
+      if (result.success) {
+        console.log('Login Facebook exitoso:', result.user?.email);
+        // El estado se actualizará automáticamente por el listener
+      } else {
+        Alert.alert('Error Facebook', result.error || 'No se pudo iniciar sesión con Facebook');
+      }
+    } catch (error) {
+      console.error('Error en Facebook Login:', error);
+      Alert.alert('Error', 'Ocurrió un error inesperado con Facebook');
+    } finally {
+      setLoading(false);
+    }
+  };
   
-  // 🔥 FUNCIÓN DE GOOGLE LOGIN MEJORADA
+  // FUNCIÓN DE GOOGLE LOGIN
   const handleGoogleLogin = async () => {
     if (loading) return;
     
@@ -319,7 +369,6 @@ export default function Index() {
     setUser(null);
   };
 
-  const handleAppleLogin = () => console.log('Continuar con Apple');
   const handleLogin = () => console.log('Iniciar Sesión');
   const handleSkip = () => console.log('Elegir quién eres');
 
@@ -425,33 +474,45 @@ export default function Index() {
 
         {/* Buttons Section */}
         <View style={styles.buttonsSection}>
-          <TouchableOpacity style={styles.buttonContainer} onPress={handleRegister}>
+          {/* BOTÓN MICROSOFT */}
+          <TouchableOpacity
+            style={[styles.buttonContainer, styles.socialButtonSpacing]}
+            onPress={handleMicrosoftLogin}
+            disabled={loading}
+          >
             <LinearGradient
-              colors={buttonGradients.register}
+              colors={buttonGradients.microsoft}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.registerButton}
+              style={[styles.socialButton, loading && { opacity: 0.7 }]}
             >
-              <Text style={styles.registerButtonText}>Regístrate Gratis</Text>
+              <Ionicons name="logo-microsoft" size={fp(24)} color="#fff" style={styles.socialIcon} />
+              <Text style={styles.socialButtonText}>
+                {loading ? 'Conectando...' : 'Continuar con Microsoft'}
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
 
+          {/* BOTÓN FACEBOOK - FUNCIONAL */}
           <TouchableOpacity
             style={[styles.buttonContainer, styles.socialButtonSpacing]}
             onPress={handleFacebookLogin}
+            disabled={loading}
           >
             <LinearGradient
               colors={buttonGradients.facebook}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.socialButton}
+              style={[styles.socialButton, loading && { opacity: 0.7 }]}
             >
               <Ionicons name="logo-facebook" size={fp(24)} color="#fff" style={styles.socialIcon} />
-              <Text style={styles.socialButtonText}>Continuar con Facebook</Text>
+              <Text style={styles.socialButtonText}>
+                {loading ? 'Conectando...' : 'Continuar con Facebook'}
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* 🔥 BOTÓN DE GOOGLE MEJORADO */}
+          {/* BOTÓN DE GOOGLE */}
           <TouchableOpacity
             style={[styles.buttonContainer, styles.socialButtonSpacing]}
             onPress={handleGoogleLogin}
@@ -470,21 +531,7 @@ export default function Index() {
             </LinearGradient>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.buttonContainer, styles.socialButtonSpacing]}
-            onPress={handleAppleLogin}
-          >
-            <LinearGradient
-              colors={buttonGradients.apple}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.socialButton}
-            >
-              <Ionicons name="logo-apple" size={fp(24)} color="#fff" style={styles.socialIcon} />
-              <Text style={styles.socialButtonText}>Continuar con Apple</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
+          {/* BOTÓN INICIAR SESIÓN */}
           <TouchableOpacity
             style={[styles.buttonContainer, styles.loginButtonSpacing]}
             onPress={handleLogin}
@@ -511,7 +558,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: wp(8),
     zIndex: 10,
-    paddingTop: hp(8),
+    paddingTop: iosAdjust(hp(4), hp(8)),
   },
 
   // Loading
@@ -538,7 +585,7 @@ const styles = StyleSheet.create({
 
   // HEADER SECTION
   headerSection: {
-    height: hp(15),
+    height: iosAdjust(hp(10), hp(15)),
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -564,9 +611,10 @@ const styles = StyleSheet.create({
 
   // LOGO SECTION
   logoSection: {
-    height: hp(15),
+    height: iosAdjust(hp(25), hp(15)),
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: iosAdjust(hp(2), 0),
   },
   logoContent: {
     flexDirection: 'row',
@@ -599,7 +647,7 @@ const styles = StyleSheet.create({
   },
   subtitleContainer: {
     alignItems: 'center',
-    marginBottom: hp(3),
+    marginBottom: iosAdjust(hp(1), hp(3)),
   },
   subtitle: {
     fontSize: fp(18),
@@ -613,11 +661,11 @@ const styles = StyleSheet.create({
     textShadowRadius: 4,
   },
 
-  // BUTTONS SECTION
+  // BUTTONS SECTION - Altura ajustada para 3 botones + login
   buttonsSection: {
-    height: hp(55),
+    height: iosAdjust(hp(45), hp(50)), // Reducida para 3 botones sociales
     justifyContent: 'flex-start',
-    paddingTop: hp(3),
+    paddingTop: iosAdjust(hp(1), hp(3)),
   },
   buttonContainer: {
     shadowColor: '#000',
@@ -627,30 +675,17 @@ const styles = StyleSheet.create({
     elevation: 0,
     marginBottom: hp(2.5),
   },
-  socialButtonSpacing: { marginBottom: hp(3) },
+  socialButtonSpacing: { 
+    marginBottom: iosAdjust(hp(2), hp(3)) 
+  },
   loginButtonSpacing: {
-    marginTop: hp(0),
+    marginTop: iosAdjust(hp(-1), hp(0)),
     alignSelf: 'center',
-  },
-  registerButton: {
-    paddingVertical: hp(2),
-    borderRadius: wp(6),
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  registerButtonText: {
-    color: '#fff',
-    fontSize: fp(18),
-    fontWeight: '700',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
   },
   socialButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: hp(1.8),
+    paddingVertical: iosAdjust(hp(1.5), hp(1.8)),
     paddingHorizontal: wp(5),
     borderRadius: wp(6),
     borderWidth: 1,
@@ -675,7 +710,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   loginButton: {
-    paddingVertical: hp(1.8),
+    paddingVertical: iosAdjust(hp(1.5), hp(1.8)),
     paddingHorizontal: wp(12),
     borderRadius: wp(6),
     alignItems: 'center',
