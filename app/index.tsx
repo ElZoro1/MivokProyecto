@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import * as React from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,10 +8,13 @@ import {
   StatusBar,
   Dimensions,
   Animated,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { signInWithGoogle, getCurrentUser, hasActiveSession, supabase } from '../lib/supabase';
+import WelcomeScreen from './welcomescreen';
 
 const { width, height } = Dimensions.get('window');
 
@@ -187,6 +191,9 @@ export default function Index() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [isAnimating, setIsAnimating] = React.useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
     let animationTimeout: ReturnType<typeof setTimeout>;
@@ -229,11 +236,89 @@ export default function Index() {
     };
   }, [fadeAnim, isAnimating]);
 
+  // Verificar sesión al cargar la app
+  const checkInitialSession = useCallback(async () => {
+    try {
+      setInitialLoading(true);
+      
+      // Verificar si hay sesión activa
+      const sessionExists = await hasActiveSession();
+      console.log('¿Existe sesión?', sessionExists);
+      
+      if (sessionExists) {
+        const currentUser = await getCurrentUser();
+        console.log('Usuario encontrado:', currentUser);
+        setUser(currentUser);
+      }
+    } catch (error) {
+      console.error('Error verificando sesión inicial:', error);
+    } finally {
+      setInitialLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkInitialSession();
+
+    // Escuchar cambios en la autenticación
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.email);
+        
+        if (event === 'SIGNED_IN' && session?.user) {
+          setUser(session.user);
+          Alert.alert('¡Éxito!', `Bienvenido ${session.user.email}`);
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
+        } else if (event === 'TOKEN_REFRESHED') {
+          console.log('Token actualizado');
+          if (session?.user) {
+            setUser(session.user);
+          }
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [checkInitialSession]);
+
   const nextIndex = (currentIndex + 1) % gradients.length;
 
   const handleRegister = () => console.log('Registrarse gratis');
   const handleFacebookLogin = () => console.log('Continuar con Facebook');
-  const handleGoogleLogin = () => console.log('Continuar con Google');
+  
+  // 🔥 FUNCIÓN DE GOOGLE LOGIN MEJORADA
+  const handleGoogleLogin = async () => {
+    if (loading) return;
+    
+    setLoading(true);
+    
+    try {
+      console.log('Iniciando login con Google...');
+      const result = await signInWithGoogle();
+      
+      if (result.success) {
+        console.log('Login exitoso:', result.user?.email);
+        // El estado se actualizará automáticamente por el listener
+      } else {
+        Alert.alert('Error', result.error || 'No se pudo iniciar sesión');
+      }
+    } catch (error) {
+      console.error('Error en Google Login:', error);
+      Alert.alert('Error', 'Ocurrió un error inesperado');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Manejar cuando el usuario cierra sesión desde WelcomeScreen
+  const handleSignOut = () => {
+    setUser(null);
+  };
+
   const handleAppleLogin = () => console.log('Continuar con Apple');
   const handleLogin = () => console.log('Iniciar Sesión');
   const handleSkip = () => console.log('Elegir quién eres');
@@ -245,6 +330,29 @@ export default function Index() {
     )), []
   );
 
+  // Mostrar loading inicial
+  if (initialLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <View style={StyleSheet.absoluteFillObject}>
+          <LinearGradient
+            colors={gradients[0]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.background}
+          />
+        </View>
+        <Text style={styles.loadingText}>Cargando...</Text>
+      </View>
+    );
+  }
+
+  // Si el usuario está logueado, mostrar la pantalla de bienvenida
+  if (user) {
+    return <WelcomeScreen user={user} onSignOut={handleSignOut} />;
+  }
+
+  // Pantalla de login para usuarios no autenticados
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
@@ -279,7 +387,7 @@ export default function Index() {
         {particles}
       </View>
 
-      {/* Contenido */}
+      {/* Contenido principal - Pantalla de Login */}
       <View style={styles.content}>
         {/* Header Section */}
         <View style={styles.headerSection}>
@@ -343,18 +451,22 @@ export default function Index() {
             </LinearGradient>
           </TouchableOpacity>
 
+          {/* 🔥 BOTÓN DE GOOGLE MEJORADO */}
           <TouchableOpacity
             style={[styles.buttonContainer, styles.socialButtonSpacing]}
             onPress={handleGoogleLogin}
+            disabled={loading}
           >
             <LinearGradient
               colors={buttonGradients.google}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.socialButton}
+              style={[styles.socialButton, loading && { opacity: 0.7 }]}
             >
               <Ionicons name="logo-google" size={fp(24)} color="#fff" style={styles.socialIcon} />
-              <Text style={styles.socialButtonText}>Continuar con Google</Text>
+              <Text style={styles.socialButtonText}>
+                {loading ? 'Conectando...' : 'Continuar con Google'}
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
 
@@ -400,6 +512,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: wp(8),
     zIndex: 10,
     paddingTop: hp(8),
+  },
+
+  // Loading
+  loadingText: {
+    color: '#fff',
+    fontSize: fp(18),
+    fontWeight: '600',
   },
 
   // PARTÍCULAS
