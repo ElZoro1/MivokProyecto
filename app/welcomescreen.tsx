@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -193,6 +194,7 @@ interface WelcomeScreenProps {
 }
 
 export default function WelcomeScreen({ user, onSignOut }: WelcomeScreenProps) {
+  const router = useRouter();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [isAnimating, setIsAnimating] = React.useState(false);
@@ -521,7 +523,10 @@ export default function WelcomeScreen({ user, onSignOut }: WelcomeScreenProps) {
           )}
           
           {/* Botón adicional para explorar la app */}
-          <TouchableOpacity style={styles.exploreButtonContainer}>
+          <TouchableOpacity
+            style={styles.exploreButtonContainer}
+            onPress={() => router.push('/BienvenidaScreen')}
+          >
             <LinearGradient
               colors={buttonGradients.skip}
               start={{ x: 0, y: 0 }}
